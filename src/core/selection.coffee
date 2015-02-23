@@ -10,10 +10,30 @@ class Selection
     @focus = false
     @range = new Range(0, 0)
     @nullDelay = false
+
+    parentDocFragment = null
+
+    # find the parent document or document fragment
+    currentElement = @doc.root.parentNode;
+    while currentElement?.nodeType != Node.DOCUMENT_FRAGMENT_NODE and currentElement.nodeType != Node.DOCUMENT_NODE
+      currentElement = currentElement.parentNode
+
+    if currentElement?.nodeType == Node.DOCUMENT_FRAGMENT_NODE
+      parentDocFragment = currentElement
+
+    @rootDocHost = @doc.root;
+    @rootSelectionDoc = document;
+
+    if parentDocFragment?.host?
+      @rootDocHost = parentDocFragment.host
+
+    if parentDocFragment?.getSelection?
+      @rootSelectionDoc = parentDocFragment
+
     this.update('silent')
 
   checkFocus: ->
-    return document.activeElement == @doc.root
+    return document.activeElement == @doc.root or (document.activeElement == @rootDocHost)
 
   getRange: (ignoreFocus = false) ->
     if this.checkFocus()
@@ -108,9 +128,12 @@ class Selection
           return [node, dom(node).length()]
 
   _getNativeRange: ->
-    selection = document.getSelection()
+    selection = @rootSelectionDoc.getSelection()
     if selection?.rangeCount > 0
-      range = selection.getRangeAt(0)
+      # avoiding getRangeAt: https://code.google.com/p/chromium/issues/detail?id=380690
+      range = document.createRange()
+      range.setStart(selection.anchorNode, selection.anchorOffset)
+      range.setEnd(selection.focusNode, selection.focusOffset)
       if dom(range.startContainer).isAncestor(@doc.root, true)
         if range.startContainer == range.endContainer or dom(range.endContainer).isAncestor(@doc.root, true)
           return range
